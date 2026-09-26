@@ -107,6 +107,7 @@ class TransactionNormalizer:
 
     # Category inference hints
     CATEGORY_KEYWORDS: ClassVar[dict[str, list[str]]] = {
+        "income": ["SALARY", "PAYROLL", "STIPEND", "BONUS", "CYRUS", "WAGES", "EARNINGS"],
         "insurance": ["INSURANCE", "LIFE", "GENERAL", "ASSURANCE", "POLICY", "PREMIUM", "HEALTH"],
         "loan": ["LOAN", "HOUSING", "MORTGAGE", "EMI", "FINANCE", "DEBT"],
         "investment": ["ASSET MANAGEMENT", "MUTUAL FUND", "MF", "SIP", "SECURITIES", "WEALTH", "PORTFOLIO"],
@@ -191,6 +192,8 @@ class TransactionNormalizer:
             return False
 
         # Direct classification priorities
+        if has_kw(["SALARY", "PAYROLL", "STIPEND", "BONUS", "CYRUS", "WAGES", "EARNINGS"]):
+            return "income"
         if has_kw(["INSURANCE", "ASSURANCE", "POLICY", "PREMIUM"]):
             return "insurance"
         if has_kw(["HOUSING", "HOME LOAN", "LOAN", "MORTGAGE", "EMI"]):

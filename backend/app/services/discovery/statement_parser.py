@@ -1,6 +1,5 @@
 """Deterministic Transaction Statement Parser for Financial Documents."""
 
-from datetime import date
 import re
 from typing import Any
 
@@ -12,18 +11,29 @@ from app.services.discovery.transaction_normalizer import (
 
 
 class StatementParser:
-    """Extracts transaction records from statement text tables and line items."""
+    """Extracts transaction records from statement text tables, line items, and block structures."""
 
     def __init__(self, normalizer: TransactionNormalizer | None = None) -> None:
         self.normalizer = normalizer or transaction_normalizer
 
-        # Common statement line patterns:
+        # Common statement date patterns (e.g. 02-Apr-2026, 04-Apr, 2026-04-02, 02/04/2026, 02.04.2026):
         self.date_regex = re.compile(
-            r"\b(\d{1,2}[-/\.\s][A-Za-z]{3,9}[-/\.\s]\d{2,4}|\d{1,2}[-/\.\s][A-Za-z]{3,9}|\d{4}[-/\.]\d{2}[-/\.]\d{2}|\d{1,2}[-/\.]\d{2}[-/\.]\d{2,4})\b"
+            r"\b(\d{1,2}[-/\.\s](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/\.\s]\d{2,4}"
+            r"|\d{1,2}[-/\.\s](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*"
+            r"|\d{4}[-/\.]\d{2}[-/\.]\d{2}"
+            r"|\d{1,2}[-/\.]\d{2}[-/\.]\d{2,4})\b",
+            re.IGNORECASE,
         )
         self.amount_regex = re.compile(
             r"(?:₹|INR|Rs\.?|USD|\$)?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{2})?|\b[0-9]+(?:\.[0-9]{2})?\b)"
         )
+
+    def _determine_direction(self, text: str) -> TransactionDirection:
+        upper = text.upper()
+        if any(cr in upper for cr in ["SALARY", "CREDIT", " CR", "| CR", "REFUND", "DEPOSIT", "INWARD", "INCOME"]):
+            if not any(dr in upper for dr in ["PREMIUM", "EMI", "BILL", "SIP", " DR", "| DR", "DEBIT", "SUBSCRIPTION"]):
+                return TransactionDirection.CREDIT
+        return TransactionDirection.DEBIT
 
     def parse_statement_text(
         self,
@@ -33,15 +43,17 @@ class StatementParser:
     ) -> list[NormalizedTransaction]:
         """Parses multiline statement text to extract individual NormalizedTransaction records."""
         transactions: list[NormalizedTransaction] = []
-        lines = text.split("\n")
+        raw_lines = text.split("\n")
+        lines = [l.strip() for l in raw_lines if l.strip()]
 
-        for line in lines:
-            trimmed = line.strip()
-            if not trimmed or len(trimmed) < 8:
+        # Pass 1: Single-line row parsing
+        matched_line_indices: set[int] = set()
+
+        for idx, line in enumerate(lines):
+            if len(line) < 6:
                 continue
 
-            # Skip header lines and metadata
-            lower = trimmed.lower()
+            lower = line.lower()
             if any(h in lower for h in [
                 "transaction date", "date | description", "opening balance", "closing balance",
                 "statement summary", "expected analysis", "statement period",
@@ -49,67 +61,113 @@ class StatementParser:
             ]):
                 continue
 
-            # Find date match
-            date_match = self.date_regex.search(trimmed)
+            date_match = self.date_regex.search(line)
             if not date_match:
                 continue
 
             date_str = date_match.group(1).strip()
-
-            # Find amount match
-            # Search after the date
-            after_date = trimmed[date_match.end() :].strip()
+            after_date = line[date_match.end():].strip()
             amount_matches = list(self.amount_regex.finditer(after_date))
-            if not amount_matches:
-                continue
 
-            # Filter valid amount numbers
-            valid_amounts: list[tuple[float, int, int]] = []
-            for m in amount_matches:
-                raw_num = m.group(1).replace(",", "")
-                try:
-                    val = float(raw_num)
-                    if 1.0 <= val <= 100_000_000.0:
-                        valid_amounts.append((val, m.start(), m.end()))
-                except ValueError:
+            if amount_matches:
+                valid_amounts = []
+                for m in amount_matches:
+                    raw_num = m.group(1).replace(",", "")
+                    try:
+                        val = float(raw_num)
+                        if 1.0 <= val <= 100_000_000.0:
+                            valid_amounts.append((val, m.start(), m.end()))
+                    except ValueError:
+                        continue
+
+                if valid_amounts:
+                    chosen_amount, amt_start, amt_end = valid_amounts[0]
+                    raw_desc = after_date[:amt_start].strip(" \t|-,—:")
+                    if not raw_desc or len(raw_desc) < 3:
+                        raw_desc = after_date[amt_end:].strip(" \t|-,—:")
+                    if not raw_desc or len(raw_desc) < 3:
+                        raw_desc = "Recurring Financial Transaction"
+
+                    direction = self._determine_direction(line)
+                    norm_desc = self.normalizer.normalize_description(raw_desc)
+                    category = self.normalizer.infer_category(raw_desc, norm_desc)
+
+                    tx = NormalizedTransaction(
+                        date_val=date_str,
+                        description=raw_desc,
+                        amount=chosen_amount,
+                        direction=direction,
+                        institution=norm_desc,
+                        category=category,
+                        normalized_description=norm_desc,
+                        source_document_id=source_document_id,
+                        page_number=page_number,
+                        raw_text=line,
+                    )
+                    transactions.append(tx)
+                    matched_line_indices.add(idx)
+
+        # Pass 2: Multi-line block parsing (e.g. Line 0: Date, Line 1: Description, Line 2: Amount)
+        if len(transactions) < 2 and len(lines) >= 3:
+            i = 0
+            while i < len(lines):
+                if i in matched_line_indices:
+                    i += 1
                     continue
 
-            if not valid_amounts:
-                continue
+                line = lines[i]
+                date_match = self.date_regex.search(line)
+                if date_match and len(line) <= 25:
+                    date_str = date_match.group(1).strip()
+                    # Check next 1-3 lines for description and amount
+                    desc = None
+                    amt = None
+                    consumed = 1
+                    direction = TransactionDirection.DEBIT
 
-            # Take the primary transaction amount (first before DR/CR or largest valid transaction)
-            chosen_amount, amt_start, amt_end = valid_amounts[0]
+                    for offset in range(1, 4):
+                        if i + offset >= len(lines):
+                            break
+                        next_line = lines[i + offset]
+                        # check if next line is another date
+                        if self.date_regex.search(next_line) and len(next_line) <= 25:
+                            break
 
-            # Description is the text between date and amount
-            raw_desc = after_date[:amt_start].strip(" \t|-,—:")
-            if not raw_desc or len(raw_desc) < 3:
-                raw_desc = after_date[amt_end:].strip(" \t|-,—:")
+                        amt_match = self.amount_regex.search(next_line)
+                        if amt_match and any(c.isdigit() for c in next_line) and len(next_line.replace(",", "").replace("₹", "").strip()) <= 15:
+                            try:
+                                raw_val = float(amt_match.group(1).replace(",", ""))
+                                if 1.0 <= raw_val <= 100_000_000.0:
+                                    amt = raw_val
+                                    consumed = max(consumed, offset + 1)
+                            except ValueError:
+                                pass
+                        elif not desc and len(next_line) >= 3:
+                            desc = next_line
+                            consumed = max(consumed, offset + 1)
 
-            if not raw_desc or len(raw_desc) < 3:
-                raw_desc = "Recurring Financial Transaction"
+                    if amt is not None:
+                        final_desc = desc or "Financial Transaction"
+                        direction = self._determine_direction(f"{date_str} {final_desc}")
+                        norm_desc = self.normalizer.normalize_description(final_desc)
+                        category = self.normalizer.infer_category(final_desc, norm_desc)
 
-            # Determine direction
-            direction = TransactionDirection.DEBIT
-            if any(cr in trimmed.upper() for cr in [" CR", "| CR", "CREDIT", "REFUND", "DEPOSIT"]):
-                if not any(dr in trimmed.upper() for dr in [" DR", "| DR", "DEBIT", "PREMIUM", "EMI", "BILL"]):
-                    direction = TransactionDirection.CREDIT
-
-            norm_desc = self.normalizer.normalize_description(raw_desc)
-            category = self.normalizer.infer_category(raw_desc, norm_desc)
-
-            tx = NormalizedTransaction(
-                date_val=date_str,
-                description=raw_desc,
-                amount=chosen_amount,
-                direction=direction,
-                institution=norm_desc,
-                category=category,
-                normalized_description=norm_desc,
-                source_document_id=source_document_id,
-                page_number=page_number,
-                raw_text=trimmed,
-            )
-            transactions.append(tx)
+                        tx = NormalizedTransaction(
+                            date_val=date_str,
+                            description=final_desc,
+                            amount=amt,
+                            direction=direction,
+                            institution=norm_desc,
+                            category=category,
+                            normalized_description=norm_desc,
+                            source_document_id=source_document_id,
+                            page_number=page_number,
+                            raw_text=f"{date_str} | {final_desc} | {amt}",
+                        )
+                        transactions.append(tx)
+                        i += consumed
+                        continue
+                i += 1
 
         return transactions
 
@@ -123,7 +181,6 @@ class StatementParser:
         today_iso = "2026-09-26"
 
         for ent in entities:
-            # Determine applicable recurring amount
             amount = 0.0
             if getattr(ent, "premium_amount", None):
                 amount = float(ent.premium_amount)
@@ -140,9 +197,6 @@ class StatementParser:
                 continue
 
             name = getattr(ent, "display_name", None) or getattr(ent, "institution_name", "Financial Institution")
-            ent_type = getattr(ent, "entity_type", "other")
-            type_str = ent_type.value if hasattr(ent_type, "value") else str(ent_type)
-
             norm_desc = self.normalizer.normalize_description(name)
             cat = self.normalizer.infer_category(name, norm_desc, getattr(ent, "institution_name", None))
 

@@ -31,7 +31,19 @@ class AIExtractionService:
         document_text: str,
         filename: str,
         actual_page_numbers: list[int],
-    ) -> tuple[DocumentType, float, list[ExtractedEntity], list[EvidenceItem], list[str]]:
+    ) -> tuple[
+        DocumentType,
+        float,
+        list[ExtractedEntity],
+        list[EvidenceItem],
+        list[str],
+        dict[str, Any] | None,
+        dict[str, Any] | None,
+        dict[str, Any] | None,
+        dict[str, Any] | None,
+        dict[str, Any] | None,
+        list[dict[str, Any]],
+    ]:
         """Send content to Groq and return validated, strongly-typed extraction results."""
         logger.info("Executing Groq financial analysis for '%s'", filename)
 

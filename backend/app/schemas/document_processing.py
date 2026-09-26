@@ -50,6 +50,81 @@ class ExtractedEntitySchema(BaseModel):
 
 
 
+class NomineeDetailSchema(BaseModel):
+    """Structured nominee beneficiary details with extraction provenance."""
+
+    name: str | None = Field(None, description="Nominee legal full name")
+    relationship: str | None = Field(None, description="Relationship to primary holder (e.g. Spouse, Child)")
+    status: str = Field(default="unverified", description="Nominee detection status (known, unknown, unverified)")
+    share_percentage: float | None = Field(None, ge=0.0, le=100.0, description="Nominee share percentage (e.g. 100.0)")
+    source_page: int | None = Field(None, ge=1, description="Page number where nominee was identified")
+    confidence: float | None = Field(None, ge=0.0, le=1.0, description="Confidence score")
+
+
+class PolicyDetailsSchema(BaseModel):
+    """Structured insurance policy terms and coverage details."""
+
+    policy_number: str | None = Field(None, description="Policy number / identifier")
+    policy_holder: str | None = Field(None, description="Primary life assured or policyholder name")
+    policy_type: str | None = Field(None, description="Policy category (e.g. Term Life Insurance, Health)")
+    sum_assured: float | None = Field(None, ge=0.0, description="Total life cover / sum assured amount")
+    death_benefit: float | None = Field(None, ge=0.0, description="Guaranteed death benefit amount")
+    accidental_rider: float | None = Field(None, ge=0.0, description="Accidental death or disability rider coverage")
+    premium: float | None = Field(None, ge=0.0, description="Regular premium payment amount")
+    frequency: str | None = Field(None, description="Premium payment frequency (e.g. Monthly, Annual)")
+    policy_start_date: str | None = Field(None, description="Policy commencement / start date")
+    policy_term: str | None = Field(None, description="Policy term duration (e.g. 20 years)")
+    payment_term: str | None = Field(None, description="Premium payment term (e.g. 10 years)")
+    nominee: NomineeDetailSchema | None = Field(None, description="Designated policy nominee")
+    status: str | None = Field(None, description="Current policy status (e.g. Active, In Force)")
+    benefits: list[str] = Field(default_factory=list, description="List of policy benefits or riders")
+
+
+class LoanDetailsSchema(BaseModel):
+    """Structured loan liability and repayment details."""
+
+    loan_account: str | None = Field(None, description="Loan account number")
+    borrower: str | None = Field(None, description="Primary borrower name")
+    co_borrower: str | None = Field(None, description="Co-borrower name if applicable")
+    loan_type: str | None = Field(None, description="Type of loan (e.g. Home Loan, Personal Loan)")
+    sanctioned_principal: float | None = Field(None, ge=0.0, description="Original sanctioned loan amount")
+    outstanding_principal: float | None = Field(None, ge=0.0, description="Current outstanding principal balance")
+    emi_amount: float | None = Field(None, ge=0.0, description="Monthly equated monthly installment amount")
+    interest_rate: str | float | None = Field(None, description="Annual interest rate percentage (e.g. 8.45%)")
+    next_due_date: str | None = Field(None, description="Next EMI payment due date")
+    tenure_remaining: str | None = Field(None, description="Remaining loan tenure")
+    repayment_history: list[dict[str, Any]] = Field(default_factory=list, description="Historical repayment schedule rows")
+
+
+class InvestmentDetailsSchema(BaseModel):
+    """Structured investment and mutual fund portfolio details."""
+
+    folio_number: str | None = Field(None, description="Folio number identifier")
+    fund_name: str | None = Field(None, description="Mutual fund scheme or asset name")
+    investor_name: str | None = Field(None, description="Primary investor name")
+    investment_type: str | None = Field(None, description="Type of investment (e.g. Mutual Fund / SIP, Equity)")
+    sip_amount: float | None = Field(None, ge=0.0, description="Systematic Investment Plan recurring amount")
+    frequency: str | None = Field(None, description="SIP frequency (e.g. Monthly)")
+    current_value: float | None = Field(None, ge=0.0, description="Current valuation / market corpus")
+    total_invested: float | None = Field(None, ge=0.0, description="Total amount invested")
+    units_held: float | None = Field(None, ge=0.0, description="Total units accumulated")
+    nav: float | None = Field(None, ge=0.0, description="Net Asset Value per unit")
+    nominee: NomineeDetailSchema | None = Field(None, description="Nominee for investment folio")
+    transactions: list[dict[str, Any]] = Field(default_factory=list, description="Investment / SIP transaction records")
+
+
+class AccountDetailsSchema(BaseModel):
+    """Structured bank or financial account summary details."""
+
+    account_holder: str | None = Field(None, description="Primary account holder name")
+    account_number: str | None = Field(None, description="Bank account number / reference")
+    bank_name: str | None = Field(None, description="Name of the banking institution")
+    account_type: str | None = Field(None, description="Type of account (e.g. Savings, Current)")
+    statement_period: str | None = Field(None, description="Statement duration period")
+    opening_balance: float | None = Field(None, description="Opening balance amount")
+    closing_balance: float | None = Field(None, description="Closing balance amount")
+
+
 class ProcessDocumentRequest(BaseModel):
     """Request schema to trigger or retry document AI processing."""
 
@@ -82,6 +157,11 @@ class DocumentProcessingResultResponse(BaseModel):
     evidence: list[EvidenceItemSchema] = Field(default_factory=list, description="Traceable evidence items")
     warnings: list[str] = Field(default_factory=list, description="Quality or missing-evidence warnings")
     transactions: list[dict[str, Any]] = Field(default_factory=list, description="Extracted transactions from document")
+    policy_details: PolicyDetailsSchema | None = Field(None, description="Structured insurance policy details")
+    loan_details: LoanDetailsSchema | None = Field(None, description="Structured loan liability details")
+    investment_details: InvestmentDetailsSchema | None = Field(None, description="Structured mutual fund / investment details")
+    account_details: AccountDetailsSchema | None = Field(None, description="Structured bank account summary details")
+    nominee_details: NomineeDetailSchema | None = Field(None, description="Structured primary nominee details")
     overall_confidence: float = Field(..., ge=0.0, le=1.0, description="Aggregated extraction confidence")
     error: str | None = Field(None, description="Error message if processing failed")
     processing_duration_ms: int = Field(..., ge=0, description="Processing execution time in milliseconds")

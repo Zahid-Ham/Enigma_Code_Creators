@@ -111,6 +111,21 @@ class TestAIValidationServiceUnit:
         raw_llm_output = {
             "document_type": "insurance_policy",
             "overall_confidence": 0.95,
+            "policy_details": {
+                "policy_number": "POL-889900",
+                "policy_holder": "Arjun Mehta",
+                "policy_type": "Term Life Insurance",
+                "sum_assured": 5000000.0,
+                "premium": 51000.0,
+                "frequency": "Annual",
+            },
+            "nominee_details": {
+                "name": "Priya Mehta",
+                "relationship": "Spouse",
+                "status": "known",
+                "share_percentage": 100.0,
+                "source_page": 1,
+            },
             "entities": [
                 {
                     "entity_type": "insurance",
@@ -138,7 +153,8 @@ class TestAIValidationServiceUnit:
             "warnings": ["Original physical certificate recommended"],
         }
 
-        doc_type, conf, entities, evidence, warnings = AIValidationService.validate_and_normalize(
+        validator = AIValidationService()
+        doc_type, conf, entities, evidence, warnings, policy_details, loan_details, investment_details, account_details, nominee_details, transactions = validator.validate_and_normalize(
             raw_data=raw_llm_output,
             actual_page_numbers=[1, 2],
         )
@@ -152,6 +168,12 @@ class TestAIValidationServiceUnit:
         assert len(evidence) == 1
         assert evidence[0].page == 1
         assert len(warnings) >= 1
+        assert policy_details is not None
+        assert policy_details["policy_number"] == "POL-889900"
+        assert policy_details["sum_assured"] == 5000000.0
+        assert nominee_details is not None
+        assert nominee_details["name"] == "Priya Mehta"
+        assert nominee_details["relationship"] == "Spouse"
 
     def test_hallucinated_page_number_adjusted(self):
         """Verify page number outside document range is clamped to valid document page."""
@@ -171,7 +193,8 @@ class TestAIValidationServiceUnit:
             "warnings": [],
         }
 
-        _doc_type, _conf, _entities, evidence, warnings = AIValidationService.validate_and_normalize(
+        validator = AIValidationService()
+        _doc_type, _conf, _entities, evidence, warnings, *_ = validator.validate_and_normalize(
             raw_data=raw_output,
             actual_page_numbers=[1, 2],
         )
@@ -204,7 +227,7 @@ class TestAIValidationServiceUnit:
                     "currency": "INR",
                 },
                 {
-                    "entity_type": "mutual_fund",
+                    "entity_type": "investment",
                     "display_name": "Nifty 50 Index Fund",
                     "institution_name": "UTI AMC",
                     "investment_value": 150000.0,
@@ -223,7 +246,8 @@ class TestAIValidationServiceUnit:
             "warnings": [],
         }
 
-        doc_type, conf, entities, evidence, warnings = AIValidationService.validate_and_normalize(
+        validator = AIValidationService()
+        doc_type, conf, entities, evidence, warnings, *_ = validator.validate_and_normalize(
             raw_data=raw_output,
             actual_page_numbers=[1],
         )
@@ -245,4 +269,57 @@ class TestAIValidationServiceUnit:
         # Entity 3: Investment
         inv = entities[2]
         assert inv.investment_value == 150000.0
+
+    def test_loan_and_investment_document_classification_and_details(self):
+        """Verify loan statement and mutual fund investment statement parsing."""
+        loan_raw = {
+            "document_type": "loan_statement",
+            "loan_details": {
+                "loan_account": "HL-2026-9901",
+                "borrower": "Arjun Mehta",
+                "sanctioned_principal": 4000000.0,
+                "outstanding_principal": 3142600.0,
+                "emi_amount": 28600.0,
+                "interest_rate": "8.45%",
+            },
+            "entities": [],
+            "evidence": [],
+        }
+        validator = AIValidationService()
+        doc_type, _, _, _, _, _, loan_details, _, _, _, _ = validator.validate_and_normalize(loan_raw, [1])
+        assert doc_type == DocumentType.LOAN_STATEMENT
+        assert loan_details is not None
+        assert loan_details["loan_account"] == "HL-2026-9901"
+        assert loan_details["outstanding_principal"] == 3142600.0
+        assert loan_details["emi_amount"] == 28600.0
+
+        inv_raw = {
+            "document_type": "mutual_fund_statement",
+            "investment_details": {
+                "folio_number": "GF-2026-11872",
+                "fund_name": "Greenwood Balanced Growth Fund",
+                "investor_name": "Arjun Mehta",
+                "sip_amount": 10000.0,
+                "frequency": "Monthly",
+                "current_value": 218450.0,
+                "units_held": 1842.337,
+            },
+            "nominee_details": {
+                "name": "Priya Mehta",
+                "relationship": "Spouse",
+                "status": "known",
+            },
+            "entities": [],
+            "evidence": [],
+        }
+        doc_type, _, _, _, _, _, _, inv_details, _, nom_details, _ = validator.validate_and_normalize(inv_raw, [1])
+        assert doc_type == DocumentType.INVESTMENT_STATEMENT
+        assert inv_details is not None
+        assert inv_details["folio_number"] == "GF-2026-11872"
+        assert inv_details["fund_name"] == "Greenwood Balanced Growth Fund"
+        assert inv_details["sip_amount"] == 10000.0
+        assert inv_details["current_value"] == 218450.0
+        assert inv_details["units_held"] == 1842.337
+        assert nom_details is not None
+        assert nom_details["name"] == "Priya Mehta"
 

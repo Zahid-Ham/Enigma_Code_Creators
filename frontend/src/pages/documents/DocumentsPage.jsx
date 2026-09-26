@@ -87,6 +87,43 @@ export default function DocumentsPage() {
   }, [selectedEstate, refreshRecurrence]);
 
   /**
+   * Helper to determine document type and label from filename
+   */
+  const getDocTypeFromFilename = (filename) => {
+    const f = (filename || '').toLowerCase();
+    if (f.includes('insurance') || f.includes('policy') || f.includes('term')) {
+      return { type: 'insurance_policy', typeLabel: 'Insurance Policy' };
+    }
+    if (f.includes('loan') || f.includes('mortgage') || f.includes('nhb') || f.includes('housing')) {
+      return { type: 'loan_statement', typeLabel: 'Loan Statement' };
+    }
+    if (f.includes('mutual') || f.includes('sip') || f.includes('fund') || f.includes('investment') || f.includes('folio') || f.includes('growth') || f.includes('greenwood')) {
+      return { type: 'investment_statement', typeLabel: 'Investment Statement' };
+    }
+    return { type: 'bank_statement', typeLabel: 'Bank Statement' };
+  };
+
+  /**
+   * Helper to format human-friendly document type labels
+   */
+  const getDocTypeDisplayLabel = (rawType) => {
+    const mapping = {
+      bank_statement: 'Bank Statement',
+      insurance_policy: 'Insurance Policy',
+      insurance_correspondence: 'Insurance Policy',
+      loan_statement: 'Loan Statement',
+      investment_statement: 'Investment Statement',
+      credit_card_statement: 'Credit Card Statement',
+      tax_document: 'Tax Document',
+      salary_document: 'Salary Document',
+      utility_bill: 'Utility Bill',
+      fixed_deposit: 'Fixed Deposit',
+      other: 'Financial Document',
+    };
+    return mapping[rawType] || 'Financial Document';
+  };
+
+  /**
    * Handle files added from dropzone or file picker
    */
   const handleFilesSelected = (files) => {
@@ -94,29 +131,24 @@ export default function DocumentsPage() {
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setLastUploadTime(timeStr);
 
-    const newItems = files.map((file, idx) => ({
-      id: `doc-upload-${Date.now()}-${idx}`,
-      file,
-      name: file.name,
-      filename: file.name,
-      size: file.size,
-      sizeFormatted: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      status: 'queued',
-      progress: 0,
-      error: null,
-      documentId: null,
-      timestamp: `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${timeStr}`,
-      type: file.name.toLowerCase().includes('insurance') || file.name.toLowerCase().includes('policy')
-        ? 'insurance_policy'
-        : file.name.toLowerCase().includes('loan')
-        ? 'loan_statement'
-        : 'bank_statement',
-      typeLabel: file.name.toLowerCase().includes('insurance') || file.name.toLowerCase().includes('policy')
-        ? 'Insurance Policy'
-        : file.name.toLowerCase().includes('loan')
-        ? 'Loan Statement'
-        : 'Bank Statement',
-    }));
+    const newItems = files.map((file, idx) => {
+      const typeInfo = getDocTypeFromFilename(file.name);
+      return {
+        id: `doc-upload-${Date.now()}-${idx}`,
+        file,
+        name: file.name,
+        filename: file.name,
+        size: file.size,
+        sizeFormatted: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+        status: 'queued',
+        progress: 0,
+        error: null,
+        documentId: null,
+        timestamp: `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${timeStr}`,
+        type: typeInfo.type,
+        typeLabel: typeInfo.typeLabel,
+      };
+    });
 
     setQueue((prev) => [...prev, ...newItems]);
     // Prepend/append to documentsList so navigator updates
@@ -286,14 +318,22 @@ export default function DocumentsPage() {
       setDocumentsList((prev) =>
         prev.map((d) => {
           if (d.id === docId || d.name === item.name) {
+            const classifiedType = finalResult.document_type || d.type;
             return {
               ...d,
               id: docId,
               status: 'completed',
               statusLabel: 'Processed',
+              type: classifiedType,
+              typeLabel: getDocTypeDisplayLabel(classifiedType),
               entities: finalResult.entities || d.entities || [],
               transactions: finalResult.transactions || d.transactions || [],
               evidence: finalResult.evidence || d.evidence || [],
+              policyDetails: finalResult.policy_details || d.policyDetails,
+              loanDetails: finalResult.loan_details || d.loanDetails,
+              investmentDetails: finalResult.investment_details || d.investmentDetails,
+              accountDetails: finalResult.account_details || d.accountDetails,
+              nomineeDetails: finalResult.nominee_details || d.nomineeDetails,
               confidence: finalResult.overall_confidence || 0.95,
               rawText: finalResult.extracted_text || d.rawText || '',
               result: finalResult,

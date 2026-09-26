@@ -223,6 +223,11 @@ class DocumentProcessingResult:
         evidence: list[EvidenceItem] | None = None,
         warnings: list[str] | None = None,
         transactions: list[dict[str, Any]] | None = None,
+        policy_details: dict[str, Any] | None = None,
+        loan_details: dict[str, Any] | None = None,
+        investment_details: dict[str, Any] | None = None,
+        account_details: dict[str, Any] | None = None,
+        nominee_details: dict[str, Any] | None = None,
         overall_confidence: float = 0.0,
         error: str | None = None,
         processing_duration_ms: int = 0,
@@ -239,6 +244,11 @@ class DocumentProcessingResult:
         self.evidence = list(evidence or [])
         self.warnings = list(warnings or [])
         self.transactions = list(transactions or [])
+        self.policy_details = policy_details
+        self.loan_details = loan_details
+        self.investment_details = investment_details
+        self.account_details = account_details
+        self.nominee_details = nominee_details
         self.overall_confidence = float(overall_confidence)
         self.error = error
         self.processing_duration_ms = processing_duration_ms
@@ -255,6 +265,11 @@ class DocumentProcessingResult:
             "evidence": [ev.to_dict() for ev in self.evidence],
             "warnings": self.warnings,
             "transactions": self.transactions,
+            "policy_details": self.policy_details,
+            "loan_details": self.loan_details,
+            "investment_details": self.investment_details,
+            "account_details": self.account_details,
+            "nominee_details": self.nominee_details,
             "overall_confidence": self.overall_confidence,
             "error": self.error,
             "processing_duration_ms": self.processing_duration_ms,
@@ -293,6 +308,11 @@ class DocumentProcessingResult:
             evidence=evidence,
             warnings=data.get("warnings", []),
             transactions=data.get("transactions", []),
+            policy_details=data.get("policy_details"),
+            loan_details=data.get("loan_details"),
+            investment_details=data.get("investment_details"),
+            account_details=data.get("account_details"),
+            nominee_details=data.get("nominee_details"),
             overall_confidence=float(data.get("overall_confidence", 0.0)),
             error=data.get("error"),
             processing_duration_ms=data.get("processing_duration_ms", 0),

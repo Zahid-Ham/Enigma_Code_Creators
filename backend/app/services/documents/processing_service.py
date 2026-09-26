@@ -270,16 +270,43 @@ class DocumentProcessingService:
             )
             logger.info("Groq analysis started for '%s'", document_id)
 
-            doc_type, confidence, entities, evidence, warnings = await self.extractor.analyze_document_content(
+            (
+                doc_type,
+                confidence,
+                entities,
+                evidence,
+                warnings,
+                policy_details,
+                loan_details,
+                investment_details,
+                account_details,
+                nominee_details,
+                ai_transactions,
+            ) = await self.extractor.analyze_document_content(
                 document_text=context_text,
                 filename=original_filename,
                 actual_page_numbers=included_page_numbers if included_page_numbers else [1],
             )
             logger.info("Groq analysis completed: classified as '%s' with %d entities", doc_type.value, len(entities))
 
-            # Extract transactions from statement text or infer from entities
+            # Deterministic Classification Fallback / Correction
             full_text = "\n".join([p.text for p in pages]) if pages else context_text
-            extracted_tx_dicts = []
+            full_text_lower = full_text.lower()
+            fname_lower = original_filename.lower()
+
+            if any(k in full_text_lower or k in fname_lower for k in ["folio number", "mutual fund", "sip statement", "units held", "growth fund", "greenwood balanced", "nav per unit"]):
+                if doc_type in (DocumentType.UNKNOWN, DocumentType.BANK_STATEMENT, DocumentType.OTHER):
+                    logger.info("Refined document classification to INVESTMENT_STATEMENT based on text signals")
+                    doc_type = DocumentType.INVESTMENT_STATEMENT
+            elif any(k in full_text_lower or k in fname_lower for k in ["policy schedule", "sum assured", "life assured", "term insurance", "abc life insurance"]):
+                if doc_type in (DocumentType.UNKNOWN, DocumentType.OTHER):
+                    doc_type = DocumentType.INSURANCE_POLICY
+            elif any(k in full_text_lower or k in fname_lower for k in ["home loan statement", "sanctioned principal", "loan account", "national housing bank"]):
+                if doc_type in (DocumentType.UNKNOWN, DocumentType.OTHER):
+                    doc_type = DocumentType.LOAN_STATEMENT
+
+            # Extract deterministic transactions from statement text
+            extracted_tx_dicts: list[dict[str, Any]] = []
             parsed_txs = []
             try:
                 from app.services.discovery.statement_parser import statement_parser
@@ -287,12 +314,47 @@ class DocumentProcessingService:
                     text=full_text,
                     source_document_id=document_id,
                 )
-                if not parsed_txs and entities:
-                    parsed_txs = statement_parser.infer_transactions_from_entities(
+                
+                # Combine parsed transactions with AI extracted transactions
+                seen_keys = set()
+                combined_txs = []
+
+                # Add deterministic parsed transactions
+                for tx in parsed_txs:
+                    k = getattr(tx, "deduplication_key", f"{getattr(tx, 'date', '')}|{getattr(tx, 'description', '')}|{getattr(tx, 'amount', 0)}")
+                    if k not in seen_keys:
+                        seen_keys.add(k)
+                        combined_txs.append(tx)
+
+                # Add AI extracted transactions if not already present
+                for ai_tx in ai_transactions:
+                    amt = float(ai_tx.get("amount", 0.0))
+                    d_str = str(ai_tx.get("date", ""))
+                    desc = str(ai_tx.get("description", ""))
+                    k = f"{d_str}|{desc.upper()}|{round(amt, 2)}|{ai_tx.get('direction', 'debit')}"
+                    if k not in seen_keys:
+                        seen_keys.add(k)
+                        from app.models.recurrence import NormalizedTransaction
+                        norm_tx = NormalizedTransaction(
+                            date_val=d_str or "2026-04-01",
+                            description=desc,
+                            amount=amt,
+                            direction=ai_tx.get("direction", "debit"),
+                            institution=ai_tx.get("institution"),
+                            category=ai_tx.get("category"),
+                            source_document_id=document_id,
+                            page_number=ai_tx.get("source_page", 1),
+                        )
+                        combined_txs.append(norm_tx)
+
+                if not combined_txs and entities:
+                    combined_txs = statement_parser.infer_transactions_from_entities(
                         entities=entities,
                         source_document_id=document_id,
                     )
-                
+
+                parsed_txs = combined_txs
+
                 extracted_tx_dicts = [
                     {
                         "id": getattr(tx, "transaction_id", f"tx-{document_id}-{i}"),
@@ -303,12 +365,13 @@ class DocumentProcessingService:
                         "direction": tx.direction.value if hasattr(getattr(tx, "direction", None), "value") else str(getattr(tx, "direction", "debit")),
                         "amount": float(getattr(tx, "amount", 0.0)),
                         "currency": getattr(tx, "currency", "INR"),
+                        "institution": getattr(tx, "institution", None),
                         "raw_text": getattr(tx, "raw_text", ""),
                     }
                     for i, tx in enumerate(parsed_txs)
                 ]
             except Exception as tx_err:
-                logger.warning("Transaction extraction fallback encountered error for '%s': %s", document_id, str(tx_err))
+                logger.warning("Transaction extraction encountered error for '%s': %s", document_id, str(tx_err))
 
             # Finalize Result
             duration_ms = int((time.time() - start_time) * 1000)
@@ -323,6 +386,11 @@ class DocumentProcessingService:
                 evidence=evidence,
                 warnings=warnings,
                 transactions=extracted_tx_dicts,
+                policy_details=policy_details,
+                loan_details=loan_details,
+                investment_details=investment_details,
+                account_details=account_details,
+                nominee_details=nominee_details,
                 overall_confidence=confidence,
                 error=None,
                 processing_duration_ms=duration_ms,
