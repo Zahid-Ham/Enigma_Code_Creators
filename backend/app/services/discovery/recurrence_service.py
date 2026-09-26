@@ -93,7 +93,8 @@ class RecurrenceService:
         # 3. Run deterministic recurrence engine across all estate transactions
         relationships = self.engine.analyze_transactions(estate_id, all_typed_txs)
 
-        # 4. Save to repository
+        # 4. Save to repository (clear old stale relationships first)
+        await self.repository.delete_estate_relationships(estate_id)
         await self.repository.save_relationships(relationships)
         logger.info("Saved %d discovered recurring relationships for estate '%s'", len(relationships), estate_id)
 
@@ -129,8 +130,18 @@ class RecurrenceService:
         )
 
     async def get_estate_relationships(self, estate_id: str) -> EstateRecurrenceResponse:
-        """Retrieves all persisted recurring relationships for an estate."""
-        relationships = await self.repository.get_estate_relationships(estate_id)
+        """Retrieves all persisted recurring relationships for an estate, ensuring deduplication."""
+        raw_all = await self.repository.get_estate_transactions(estate_id)
+        if raw_all:
+            all_typed_txs = [
+                t if isinstance(t, NormalizedTransaction) else NormalizedTransaction.from_dict(t)
+                for t in raw_all
+            ]
+            relationships = self.engine.analyze_transactions(estate_id, all_typed_txs)
+            await self.repository.delete_estate_relationships(estate_id)
+            await self.repository.save_relationships(relationships)
+        else:
+            relationships = await self.repository.get_estate_relationships(estate_id)
 
         start_date = None
         end_date = None

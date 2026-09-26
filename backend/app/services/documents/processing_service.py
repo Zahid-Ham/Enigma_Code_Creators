@@ -296,13 +296,13 @@ class DocumentProcessingService:
                 extracted_tx_dicts = [
                     {
                         "id": getattr(tx, "transaction_id", f"tx-{document_id}-{i}"),
-                        "date": str(tx.date_val),
-                        "description": tx.description,
-                        "normalized_description": tx.normalized_description,
-                        "category": tx.category.value if hasattr(tx.category, "value") else str(tx.category),
-                        "direction": tx.direction.value if hasattr(tx.direction, "value") else str(tx.direction),
-                        "amount": float(tx.amount),
-                        "currency": tx.currency,
+                        "date": str(getattr(tx, "date", getattr(tx, "date_val", ""))),
+                        "description": getattr(tx, "description", ""),
+                        "normalized_description": getattr(tx, "normalized_description", getattr(tx, "description", "")),
+                        "category": tx.category.value if hasattr(getattr(tx, "category", None), "value") else str(getattr(tx, "category", "other")),
+                        "direction": tx.direction.value if hasattr(getattr(tx, "direction", None), "value") else str(getattr(tx, "direction", "debit")),
+                        "amount": float(getattr(tx, "amount", 0.0)),
+                        "currency": getattr(tx, "currency", "INR"),
                         "raw_text": getattr(tx, "raw_text", ""),
                     }
                     for i, tx in enumerate(parsed_txs)
