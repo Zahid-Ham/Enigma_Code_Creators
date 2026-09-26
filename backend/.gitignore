@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Testing & Linting
+.pytest_cache/
+.ruff_cache/
+coverage/
+
+# Environment and Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+service-account*.json
+firebase-service-account*.json
+firebase-adminsdk*.json
+firebase-credentials*.json
+*serviceAccountKey*.json
+secrets/
+.secret*
+
+# Temp & extracted data
+data/extracted/*
+!data/extracted/.gitkeep
+data/samples/*
+!data/samples/.gitkeep
+tmp/
+temp/

@@ -1,0 +1,268 @@
+/* ==========================================================================
+   FINCLOSURE DESIGN SYSTEM
+   Warm ivory aesthetic, deep forest green accents, refined editorial typography
+   ========================================================================== */
+
+:root {
+  /* Color Palette matching visual reference */
+  --bg-app: #FAF7F2;
+  --bg-gradient-top: #FCFAF7;
+  --bg-surface: #FFFFFF;
+  --bg-surface-subtle: #F5EFE8;
+  --bg-surface-muted: #EDE6DC;
+  --bg-surface-plate: #F0EAE1;
+  --bg-accent-light: #EBF3EE;
+  --bg-accent-tint: #F3F8F5;
+
+  --color-primary-dark: #183B2B;
+  --color-primary-hover: #132F22;
+  --color-primary-accent: #28704D;
+  --color-primary-emerald: #2E7D52;
+  --color-accent-leaf: #3E8E64;
+
+  --text-primary: #17211B;
+  --text-secondary: #5A665F;
+  --text-muted: #8A968E;
+  --text-inverse: #FFFFFF;
+
+  --border-subtle: #E8E2D8;
+  --border-card: #E4DED3;
+  --border-plate: #DDD6CA;
+  --border-focus: #28704D;
+
+  /* Status Colors */
+  --status-active-text: #1E6B47;
+  --status-active-bg: #E8F5EE;
+  --status-potential-text: #92400E;
+  --status-potential-bg: #FEF3C7;
+  --status-progress-text: #0369A1;
+  --status-progress-bg: #E0F2FE;
+  --status-completed-text: #15803D;
+  --status-completed-bg: #DCFCE7;
+  --status-blocked-text: #B91C1C;
+  --status-blocked-bg: #FEE2E2;
+
+  /* Typography */
+  --font-serif: 'Newsreader', 'Playfair Display', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-hand: 'Caveat', cursive;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(24, 59, 43, 0.04);
+  --shadow-md: 0 4px 16px rgba(24, 59, 43, 0.06), 0 1px 4px rgba(24, 59, 43, 0.03);
+  --shadow-lg: 0 14px 36px rgba(24, 59, 43, 0.08), 0 2px 8px rgba(24, 59, 43, 0.03);
+  --shadow-floating: 0 24px 50px -10px rgba(24, 59, 43, 0.10), 0 4px 16px rgba(24, 59, 43, 0.04);
+  --shadow-mockup: 0 20px 48px -8px rgba(24, 59, 43, 0.09), 0 4px 14px rgba(24, 59, 43, 0.03);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-2xl: 28px;
+  --radius-pill: 9999px;
+
+  /* Layout */
+  --max-width: 1280px;
+  --nav-height: 80px;
+}
+
+/* Reset & Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(circle at 50% 0%, #FFFFFF 0%, var(--bg-app) 100%);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Layout Utilities */
+.landing-container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+@media (max-width: 768px) {
+  .landing-container {
+    padding: 0 18px;
+  }
+}
+
+/* Typography Utilities */
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+.font-hand {
+  font-family: var(--font-hand);
+}
+
+.section-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.725rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #636F67;
+  background-color: #EFE9E0;
+  padding: 6px 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid #E2DCD2;
+}
+
+.section-heading {
+  font-family: var(--font-serif);
+  font-size: 2.85rem;
+  font-weight: 500;
+  line-height: 1.16;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.section-subheading {
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  max-width: 660px;
+}
+
+@media (max-width: 768px) {
+  .section-heading {
+    font-size: 2rem;
+  }
+  .section-subheading {
+    font-size: 0.95rem;
+  }
+}
+
+/* Button System */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background-color: var(--color-primary-dark);
+  color: var(--text-inverse);
+  box-shadow: 0 2px 6px rgba(24, 59, 43, 0.15);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 59, 43, 0.22);
+}
+
+.btn-secondary {
+  background-color: #FFFFFF;
+  color: var(--text-primary);
+  border-color: #E2DCD5;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:hover {
+  background-color: #FAF7F2;
+  border-color: #D6CEC5;
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  color: var(--text-primary);
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* Card System */
+.card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.25s ease;
+}
+
+.card:hover {
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-md);
+}
+
+/* Badge System */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.badge-active {
+  background-color: var(--status-active-bg);
+  color: var(--status-active-text);
+}
+
+.badge-potential {
+  background-color: var(--status-potential-bg);
+  color: var(--status-potential-text);
+}
+
+.badge-progress {
+  background-color: var(--status-progress-bg);
+  color: var(--status-progress-text);
+}
+
+.badge-completed {
+  background-color: var(--status-completed-bg);
+  color: var(--status-completed-text);
+}
+
+.badge-blocked {
+  background-color: var(--status-blocked-bg);
+  color: var(--status-blocked-text);
+}

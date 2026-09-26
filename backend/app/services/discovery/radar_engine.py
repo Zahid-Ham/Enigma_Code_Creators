@@ -3,4 +3,3 @@
 # Placeholder for Estate Radar engine
 class RadarEngine:
     """Core engine for detecting potential missing assets, unlinked accounts, and liabilities."""
-    pass

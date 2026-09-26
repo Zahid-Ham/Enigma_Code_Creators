@@ -5,6 +5,8 @@ node_modules/
 
 # Testing
 coverage/
+.pytest_cache/
+.ruff_cache/
 
 # Production Build
 dist/
@@ -17,23 +19,25 @@ __pycache__/
 *.so
 .Python
 env/
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 venv/
 .venv/
+backend/.venv/
 ENV/
 env.bak/
 venv.bak/
 
-# Firebase / Secrets / Credentials
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
 *.pem
 *.key
 *.cert
+service-account*.json
+firebase-service-account*.json
+firebase-adminsdk*.json
+firebase-credentials*.json
 *serviceAccountKey*.json
-*firebase-adminsdk*.json
 secrets/
 .secret*
 
@@ -53,8 +57,10 @@ yarn-error.log*
 pnpm-debug.log*
 *.log
 
-# Extracted & Temporary processing files
+# Private uploads, extracted artifacts & temporary processing files
 backend/data/extracted/*
 !backend/data/extracted/.gitkeep
+backend/data/samples/*
+!backend/data/samples/.gitkeep
 tmp/
 temp/

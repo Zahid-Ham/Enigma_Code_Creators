@@ -3,4 +3,3 @@
 # Placeholder for maintaining provenance chains
 class EvidenceService:
     """Service to track document references, page numbers, and confidence metrics."""
-    pass
