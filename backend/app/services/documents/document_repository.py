@@ -44,6 +44,14 @@ class DocumentRepositoryProtocol(ABC):
     async def get_processing_result(self, document_id: str) -> dict[str, Any] | None:
         """Retrieve the structured AI processing result for a document."""
 
+    @abstractmethod
+    async def list_documents_for_estate(self, estate_id: str) -> list[dict[str, Any]]:
+        """Retrieve all documents metadata for an estate."""
+
+    @abstractmethod
+    async def list_processing_results_for_estate(self, estate_id: str) -> list[dict[str, Any]]:
+        """Retrieve all structured processing results for an estate."""
+
 
 class InMemoryDocumentRepository(DocumentRepositoryProtocol):
     """Thread-safe in-memory document repository for isolated tests and offline fallback."""
@@ -108,6 +116,17 @@ class InMemoryDocumentRepository(DocumentRepositoryProtocol):
     async def get_processing_result(self, document_id: str) -> dict[str, Any] | None:
         with self._lock:
             return self._results.get(document_id)
+
+    async def list_documents_for_estate(self, estate_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            return [doc for doc in self._metadata.values() if doc.get("estate_id") == estate_id or not doc.get("estate_id")]
+
+    async def list_processing_results_for_estate(self, estate_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            doc_ids = {doc_id for doc_id, doc in self._metadata.items() if doc.get("estate_id") == estate_id or not doc.get("estate_id")}
+            if not doc_ids:
+                return list(self._results.values())
+            return [res for doc_id, res in self._results.items() if doc_id in doc_ids]
 
 
 class FirestoreDocumentRepository(DocumentRepositoryProtocol):
@@ -252,6 +271,31 @@ class FirestoreDocumentRepository(DocumentRepositoryProtocol):
         except Exception as e:
             logger.error("Failed to retrieve processing result from Firestore for '%s': %s", document_id, e)
             return None
+
+    async def list_documents_for_estate(self, estate_id: str) -> list[dict[str, Any]]:
+        try:
+            docs_ref = self.db.collection("documents").where("estate_id", "==", estate_id)
+            snapshots = docs_ref.stream()
+            results = [s.to_dict() for s in snapshots if s.exists]
+            return results
+        except Exception as e:
+            logger.error("Failed to list documents for estate '%s': %s", estate_id, e)
+            return []
+
+    async def list_processing_results_for_estate(self, estate_id: str) -> list[dict[str, Any]]:
+        try:
+            docs = await self.list_documents_for_estate(estate_id)
+            results = []
+            for d in docs:
+                doc_id = d.get("document_id")
+                if doc_id:
+                    res = await self.get_processing_result(doc_id)
+                    if res:
+                        results.append(res)
+            return results
+        except Exception as e:
+            logger.error("Failed to list processing results for estate '%s': %s", estate_id, e)
+            return []
 
 
 _default_doc_repo: DocumentRepositoryProtocol | None = None

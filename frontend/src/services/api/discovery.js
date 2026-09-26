@@ -1,8 +1,24 @@
 /**
- * Recurrence & Discovery API Service
+ * Recurrence & Estate Radar Discovery API Service
  */
 
 import { apiClient } from './apiClient';
+
+/**
+ * Retrieve synthesized Estate Radar cross-document discovery graph.
+ * @param {string} estateId - The estate identifier (e.g. 'demo-estate-001').
+ * @returns {Promise<Object>} EstateRadarResponse.
+ */
+export async function getEstateRadar(estateId = 'demo-estate-001') {
+  try {
+    const response = await apiClient.get(`/estate-radar/${estateId}`);
+    return response.data;
+  } catch (error) {
+    // Fallback to namespaced route if needed
+    const response = await apiClient.get(`/discovery/estate-radar/${estateId}`);
+    return response.data;
+  }
+}
 
 /**
  * Retrieve all recurring financial relationships discovered for an estate.

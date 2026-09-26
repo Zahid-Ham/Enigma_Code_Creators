@@ -10,6 +10,7 @@ from app.services.discovery.recurrence_repository import (
 )
 import app.services.discovery.recurrence_repository as recurrence_repo_mod
 import app.services.discovery.recurrence_service as recurrence_srv_mod
+from app.services.discovery.radar_engine import radar_engine
 
 
 @pytest.fixture
@@ -18,6 +19,7 @@ def client() -> TestClient:
     repo = InMemoryRecurrenceRepository()
     recurrence_repo_mod._recurrence_repo_instance = repo
     recurrence_srv_mod.recurrence_service.repository = repo
+    radar_engine.recurrence_repo = repo
     return TestClient(app)
 
 
@@ -78,3 +80,15 @@ def test_discovery_analyze_and_get_recurring(client: TestClient):
     detail_data = detail_res.json()
     assert detail_data["relationship_id"] == rel_id
     assert detail_data["normalized_name"] == "ABC LIFE INSURANCE"
+
+    # GET Estate Radar dashboard payload
+    radar_res = client.get(f"/api/v1/estate-radar/{estate_id}")
+    assert radar_res.status_code == 200
+    radar_data = radar_res.json()
+    assert radar_data["estate_id"] == estate_id
+    assert "summary" in radar_data
+    assert "discoveries" in radar_data
+    assert "missing_assets" in radar_data
+    assert "risk_alerts" in radar_data
+    assert "insights" in radar_data
+    assert radar_data["summary"]["recurring_relationships"] >= 1
